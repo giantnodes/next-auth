@@ -1,36 +1,40 @@
-import type CookieStore from '@/storage/cookie-store'
 import type { AuthProvider } from '@/typings/providers.types'
 import type { NextAuthRequest } from '@/typings/route.types'
-import type { NextApiResponse } from 'next'
+
+import { NextResponse } from 'next/server'
 
 import doPasswordSignIn from '@/api/grants/password'
 
 export type SignInRouteOptions = {
   provider: AuthProvider
-  redirect_url?: string
+  redirect_url: string
 }
 
-const signin = async (
-  req: NextAuthRequest,
-  res: NextApiResponse,
-  store: CookieStore,
-  options: SignInRouteOptions
-): Promise<NextApiResponse<any> | any> => {
+const signin = async (req: NextAuthRequest, options: SignInRouteOptions): Promise<NextResponse> => {
   const { provider } = options
 
   if (req.method !== 'POST') {
-    return res.status(400).end()
+    return NextResponse.next({
+      status: 400,
+      statusText: `The signin route expects a POST request but received '${req.method}'.`,
+    })
   }
 
   if (!provider) {
-    return res.status(400).end()
+    return NextResponse.next({
+      status: 400,
+      statusText: `The signin route expects a provider to be included but received '${provider}'.`,
+    })
   }
 
   switch (provider.grant_type) {
     case 'password':
-      return doPasswordSignIn(req, res, store, options)
+      return doPasswordSignIn(req, options)
     default:
-      return res.status(400).end()
+      return NextResponse.next({
+        status: 400,
+        statusText: `The signin route cannot handle grant_type of '${provider.grant_type}'.`,
+      })
   }
 }
 

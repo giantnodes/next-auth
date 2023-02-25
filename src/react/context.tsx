@@ -1,3 +1,5 @@
+'use client'
+
 import type { NextSession } from '@/typings/session.types'
 
 import React, { createContext, useMemo, useState } from 'react'

@@ -1,8 +1,14 @@
 import type { AuthProvider } from '@/typings/providers.types'
-import type { NextApiRequest } from 'next'
+import type { NextRequest } from 'next/server'
 
-export type NextAuthRequest = NextApiRequest & {
+export type NextAuthRequest = NextRequest & {
   options: {
     provider?: AuthProvider
+  }
+}
+
+export type NextAuthRequestParams = {
+  params: {
+    auth?: string[]
   }
 }

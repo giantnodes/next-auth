@@ -1,37 +1,36 @@
 import type { SignInRouteOptions } from '@/api/routes/signin'
-import type CookieStore from '@/storage/cookie-store'
 import type { OAuthTokenResponse } from '@/typings/oauth.types'
 import type { NextAuthRequest } from '@/typings/route.types'
-import type { NextApiResponse } from 'next'
 
-import * as qs from 'query-string'
+import { NextResponse } from 'next/server'
+import qs from 'query-string'
 
-import 'isomorphic-fetch'
+import CookieStore from '@/storage/cookie-store'
 
-const doPasswordSignIn = async (
-  req: NextAuthRequest,
-  res: NextApiResponse,
-  store: CookieStore,
-  options: SignInRouteOptions
-): Promise<NextApiResponse<any> | any> => {
+const doPasswordSignIn = async (request: NextAuthRequest, options: SignInRouteOptions): Promise<NextResponse> => {
   const { provider } = options
 
   const endpoint = provider.endpoints.token
   if (!endpoint) {
-    return res.status(400).end(`The provider '${provider.name}' has no token endpoint defined.`)
+    return NextResponse.next({
+      status: 400,
+      statusText: `The provider '${provider.name}' has no token endpoint defined.`,
+    })
   }
 
+  const body = await request.formData()
   const params = {
     grant_type: provider.grant_type,
     client_id: provider.client_id,
     client_secret: provider.client_secret,
     scope: provider.scope,
-    username: req.body.username,
-    password: req.body.password,
+    username: body.get('username'),
+    password: body.get('password'),
   }
 
   const response = await fetch(endpoint, {
     method: 'POST',
+    cache: 'no-cache',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
@@ -40,13 +39,19 @@ const doPasswordSignIn = async (
 
   if (!response.ok) {
     const json = await response.json()
-    return res.status(400).json(json)
+    return NextResponse.json(json, {
+      status: 400,
+      statusText: `The login password route received a non 200 response and got '${response.status}'.`,
+    })
   }
 
   const payload = (await response.json()) as OAuthTokenResponse
-  store.store(provider, payload)
 
-  return res.redirect(options.redirect_url ?? '/')
+  const redirect = NextResponse.redirect(options.redirect_url)
+  const cookies = CookieStore.create(provider, payload)
+  cookies.forEach((cookie) => redirect.cookies.set(cookie))
+
+  return redirect
 }
 
 export default doPasswordSignIn

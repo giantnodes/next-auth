@@ -1,38 +1,47 @@
 import type { AuthProvider } from '@/typings/providers.types'
-import type { NextAuthRequest } from '@/typings/route.types'
-import type { NextApiResponse } from 'next'
+import type { NextAuthRequest, NextAuthRequestParams } from '@/typings/route.types'
 
+import { NextResponse } from 'next/server'
+
+import logout from '@/api/routes/logout'
 import session from '@/api/routes/session'
 import signin from '@/api/routes/signin'
-import CookieStore from '@/storage/cookie-store'
 
 type AuthenticationOptions = {
   providers: AuthProvider[]
 }
 
-const NextAuth = (options: AuthenticationOptions) => async (req: NextAuthRequest, res: NextApiResponse) => {
-  const { providers } = options
+const NextAuth =
+  (options: AuthenticationOptions) =>
+  async (request: NextAuthRequest, { params }: NextAuthRequestParams) => {
+    const { providers } = options
 
-  if (!req.query.auth) {
-    return res.status(400).end()
+    if (!params.auth) {
+      return NextResponse.next({
+        status: 400,
+        statusText: `The provider route params 'auth' were not found in the request.`,
+      })
+    }
+
+    const provider = providers.find((p) => p.id === params?.auth?.[1])
+    if (provider == null) {
+      return NextResponse.next({
+        status: 400,
+        statusText: `The provider id '${params?.auth?.[1]}' has not been defined.`,
+      })
+    }
+
+    const redirectUrl = request.nextUrl.searchParams.get('redirect_url') || request.nextUrl.origin
+    switch (params.auth[0]) {
+      case 'signin':
+        return signin(request, { provider, redirect_url: redirectUrl })
+      case 'logout':
+        return logout(request, { provider, redirect_url: redirectUrl })
+      case 'session':
+        return session(request, { provider })
+      default:
+        return NextResponse.next({ status: 400 })
+    }
   }
-
-  const params = Array.isArray(req.query.auth) ? req.query.auth : [req.query.auth]
-  const provider = providers.find((p) => p.id === params[1])
-  if (provider == null) {
-    return res.status(400).end()
-  }
-
-  const store = new CookieStore(req, res)
-
-  switch (req.query.auth[0]) {
-    case 'signin':
-      return signin(req, res, store, { provider, redirect_url: req.query.redirect_url as string })
-    case 'session':
-      return session(req, res, { provider })
-    default:
-      return res.status(400).end()
-  }
-}
 
 export default NextAuth
